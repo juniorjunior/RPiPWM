@@ -17,7 +17,7 @@ The pwmdemo app can be used in two primary modes:
 
 ## UDP Messages
 
-Each message consists of a two byte (16 bits) command followed by the appropriate data.
+Each message consists of a one byte (8 bits) command followed by the appropriate data.
 
 | Name | Value | Description |
 | :--- | ----: | :---------- |
@@ -28,7 +28,7 @@ Each message consists of a two byte (16 bits) command followed by the appropriat
 ### CMD_SETLEVELS
 | Name | Description | Bits |
 | :--- | :---------- | ---: |
-| CMD  | This is the command action to take | 16 |
+| CMD  | This is the command action to take | 8 |
 | RampTime | This is the time in milliseconds over which the color will be changed | 32 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | 64 |
 | Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | 64 |
@@ -40,9 +40,9 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 
 | Name | Description | Bits |
 | :--- | :---------- | ---: |
-| CMD  | This is the command action to take | 16 |
+| CMD  | This is the command action to take | 8 |
 | RampTime | This is the time in milliseconds over which the color will be changed | 32 |
-| NumColors | This is the number of color triplets in the message | 16 |
+| NumColors | This is the number of color triplets in the message | 8 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | 64 |
 | Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | 64 |
 | Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | 64 |
@@ -52,4 +52,4 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 
 | Name | Description | Bits |
 | :--- | :---------- | ---: |
-| CMD  | This is the command action to take | 16 |
+| CMD  | This is the command action to take | 8 |
