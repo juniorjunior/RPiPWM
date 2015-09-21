@@ -26,30 +26,30 @@ Each message consists of a one byte (8 bits) command followed by the appropriate
 | CMD_AUTODISABLE | 0x03 | Message contains only the command (no extra data) and stops any current auto-cycling pattern. |
 
 ### CMD_SETLEVELS
-| Name | Description | Bits |
-| :--- | :---------- | ---: |
-| CMD  | This is the command action to take | 8 |
-| RampTime | This is the time in milliseconds over which the color will be changed | 32 |
-| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | 64 |
-| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | 64 |
-| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | 64 |
+| Name | Description | Type | Bits |
+| :--- | :---------- | :--- | ---: |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
+| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
 
 ### CMD_AUTOPATTERN
 
 The CMD, RampTime and NumColors value/bits are at the head of the message. The number of color triplets (R, G, B, RestTime) passed must be equal to NumColors.
 
-| Name | Description | Bits |
-| :--- | :---------- | ---: |
-| CMD  | This is the command action to take | 8 |
-| RampTime | This is the time in milliseconds over which the color will be changed | 32 |
-| NumColors | This is the number of color triplets in the message | 8 |
-| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | 64 |
-| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | 64 |
-| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | 64 |
-| RestTime | This is the time in milliseconds to hold on this color after ramping | 32 |
+| Name | Description | Type | Bits |
+| :--- | :---------- | :--- | ---: |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
+| NumColors | This is the number of color triplets in the message | Unsigned Char | 8 |
+| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| RestTime | This is the time in milliseconds to hold on this color after ramping | Unsigned Int | 32 |
 
 ### CMD_AUTODISABLE
 
-| Name | Description | Bits |
-| :--- | :---------- | ---: |
-| CMD  | This is the command action to take | 8 |
+| Name | Description | Type | Bits |
+| :--- | :---------- | :--- | ---: |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
