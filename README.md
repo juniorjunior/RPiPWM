@@ -1,9 +1,11 @@
 # RPiPWM
 
+This application was initially started to get a feel for using Pi-Blaster based PWM on the RaspberryPi. It worked so well that I ended up expanding things to work not only as an example of possible uses, but as a listening daemon for remote controlling the PWM pins. The code was written with Adafruit's analog LED strips in mind, but should be easily adaptable to any PWM functionality. [Pi-Blaster](https://github.com/sarfata/pi-blaster) is required and must be running in order to function. **Caveat:** This code is not hardened to attack and I do not recommend exposing the UDP interface to outside traffic without significant additional data integrity checks and rate limiters.
+
 ## Building pwmdemo
 
 * Make a build folder and change to that folder
-* Run cmake against the RPiPWM folder: cmake <full/path/to/RPiPWM>
+* Run cmake against the RPiPWM folder: cmake /full/path/to/RPiPWM
 * Run make
 
 ## Usage
