@@ -10,10 +10,15 @@ This application was initially started to get a feel for using Pi-Blaster based 
 
 ## Usage
 
-The pwmdemo app can be used in two primary modes:
+The pwmdemo app can be used in different modes:
 
 * Interactive Mode - This mode displays a menu allowing input allowing the individual color/PWM levels to be adjusted as well as listening for UDP messages to change settings.
-* Daemon Mode - This mode only listens for UDP messages to change settings.
+* Daemon Mode - This mode only listens for UDP messages to change settings. (command line option --daemon)
+* Testing Mode - This mode causes the app to bind to /dev/null instead of /dev/pi-blaster which can be useful while testing. (command line option --test)
+
+## Setup
+
+* GPIO Pins - The code has three pins (defaults to 23, 24, 25) set up as Red, Green, and Blue respectively. These are the GPIO numbers not the connector pin numbers. They are set at the top of the source and do require a recompile if changed.
 
 ## UDP Messages
 
