@@ -66,6 +66,7 @@ struct colorTriplet {
 
 unsigned int udpMsgCount = 0;
 int pbDeviceFd = -1;
+unsigned char myTargetID = 0;
 
 // Boolean to indicate if we are in daemon mode or not
 bool daemonMode = false;
@@ -200,7 +201,7 @@ void remoteColorThread() {
    socklen_t fromlen;
    struct sockaddr_in server;
    struct sockaddr_in from;
-   char buf[1024] = {0};
+   char buf[8192] = {0};
    unsigned int recvPort = 6565;
    double redUDP, greenUDP, blueUDP;
    unsigned int udpCommand;
@@ -208,6 +209,7 @@ void remoteColorThread() {
    unsigned int rampDuration;
    vector<colorTriplet> colors;
    struct colorTriplet color;
+   unsigned char udpTargetID;
    
 
    // Initialize the listening UDP socket.
@@ -230,20 +232,27 @@ void remoteColorThread() {
    // Loop forever waiting for UDP messages
    while ( true ) {
       // Clear the input buffer and wait for a message
-      memset((char*)buf, 0, 1024);
-      bytesReceived = recvfrom(sock, buf, 1024, 0, (struct sockaddr *)&from, &fromlen);
+      memset((char*)buf, 0, 8192);
+      bytesReceived = recvfrom(sock, buf, 8192, 0, (struct sockaddr *)&from, &fromlen);
       udpMsgCount++;
 
-      // Get the command from the first 16 bits of the UDP message
+      // Get the command from the first 8 bits of the UDP message
       memcpy(&udpCommand, (char*)buf, 1);
+
+      // Get the target ID from the second 8 bits of the UDP message
+      memcpy(&udpTargetID, (char*)buf + 1, 1);
+
+      // If the TargetID from the UDP message doesn't match our ID,
+      // and isn't set to 0 (zero) (i.e. all targets), then skip out.
+      if ( (udpTargetID != myTargetID) && (udpTargetID != 0) ) continue;
 
       // If we got a CMD_SETLEVELS, do a sanity check on the data and
       // ramp to the new values if we aren't currently in auto mode
       if ( udpCommand == CMD_SETLEVELS ) {
-         memcpy(&rampDuration, (char*)buf + 1, 4);
-         memcpy(&redUDP, (char*)buf + 5, 8);
-         memcpy(&greenUDP, (char*)buf + 13, 8);
-         memcpy(&blueUDP, (char*)buf + 21, 8);
+         memcpy(&rampDuration, (char*)buf + 2, 4);
+         memcpy(&redUDP, (char*)buf + 6, 8);
+         memcpy(&greenUDP, (char*)buf + 14, 8);
+         memcpy(&blueUDP, (char*)buf + 22, 8);
          redUDP = abs(redUDP);
          greenUDP = abs(greenUDP);
          blueUDP = abs(blueUDP);
@@ -273,14 +282,14 @@ void remoteColorThread() {
       // and start a new one from the color sets provided
       if ( udpCommand == CMD_AUTOPATTERN ) {
          unsigned char numTriplets = 0;
-         memcpy(&rampDuration, (char*)buf + 1, 4);
-         memcpy(&numTriplets, (char*)buf + 5, 1);
-         // The input buffer can hold a max of 36 full triplets plus the header so we limit it to that
-         if ( numTriplets > 36 ) numTriplets = 36;
+         memcpy(&rampDuration, (char*)buf + 2, 4);
+         memcpy(&numTriplets, (char*)buf + 6, 1);
+         // The input buffer can hold a max of 35 full triplets plus the header so we limit it to that
+         if ( numTriplets > 35 ) numTriplets = 35;
          colors.clear();
          // Snag all the colors from the buffer
          for ( unsigned int i = 0; i < numTriplets; i++ ) {
-            memcpy(&color, (char*)buf + (6 + (i*28)), 28);
+            memcpy(&color, (char*)buf + (7 + (i*28)), 28);
             // Sanity check the incoming color and restDuration data. Zero out color levels which are too high
             color.red = abs(color.red);
             color.green = abs(color.green);
@@ -517,8 +526,12 @@ string getParameter(string needle, const int argc, const char* argv[]) {
       if ( curP.empty() ) continue;
       if ( curP.length() < needle.length() ) continue;
       if ( curP.compare(0, needle.length(), needle) == 0 ) {
-         value = curP.substr(0, needle.length());
-         if ( !value.empty() ) value = value.substr(1);
+         int p = curP.find("=", 0);
+         if ( (p != string::npos) && ((p + 1) <= curP.length()) ) {
+            value = curP.substr(p + 1);
+         } else {
+            value = "";
+         }
          return value;
       }
    }
@@ -559,6 +572,7 @@ int main (int argc, const char* argv[], char* envp[]) {
    }
 
    pValue = getParameter("--test", argc, argv);
+      cout << "PV: " << pValue << "\n";
    if ( pValue != NOPARAMETER ) {
       deviceName = "/dev/null";
    } else {
@@ -568,6 +582,11 @@ int main (int argc, const char* argv[], char* envp[]) {
    pValue = getParameter("--daemon", argc, argv);
    if ( pValue != NOPARAMETER ) {
       daemonMode = true;
+   }
+
+   pValue = getParameter("--id", argc, argv);
+   if ( pValue != NOPARAMETER ) {
+      if ( !pValue.empty() ) myTargetID = (unsigned char)stoi(pValue);
    }
 
    // Open the Pi-Blaster device for writing

@@ -22,7 +22,7 @@ The pwmdemo app can be used in different modes:
 
 ## UDP Messages
 
-Each message consists of a one byte (8 bits) command followed by the appropriate data.
+Each message consists of a one byte (8 bits) command, one byte (8 bits) for the target ID, followed by the appropriate data. Target ID values can be between 0 and 255. Target ID of 0 means "all".
 
 | Name | Value | Description |
 | :--- | ----: | :---------- |
@@ -34,6 +34,7 @@ Each message consists of a one byte (8 bits) command followed by the appropriate
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message | Unsigned Char | 8 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
 | Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
@@ -46,6 +47,7 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message | Unsigned Char | 8 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | NumColors | This is the number of color triplets in the message | Unsigned Char | 8 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
@@ -58,3 +60,4 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message | Unsigned Char | 8 |
