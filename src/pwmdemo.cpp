@@ -572,7 +572,6 @@ int main (int argc, const char* argv[], char* envp[]) {
    }
 
    pValue = getParameter("--test", argc, argv);
-      cout << "PV: " << pValue << "\n";
    if ( pValue != NOPARAMETER ) {
       deviceName = "/dev/null";
    } else {
