@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 
-project("PWMDemo")
+project("PWMColors")
 
-add_executable(pwmdemo src/pwmdemo.cpp)
+add_executable(pwmcolors src/pwmcolors.cpp)
 
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)

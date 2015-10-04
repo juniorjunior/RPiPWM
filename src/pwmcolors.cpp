@@ -7,6 +7,7 @@
 #include <cmath>
 #include <vector>
 #include <typeinfo>
+#include <bitset>
 
 #include <termios.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 
 #include <netinet/in.h>
 
+#define CMD_OFF         0x00
 #define CMD_SETLEVELS   0x01
 #define CMD_AUTOPATTERN 0x02
 #define CMD_AUTODISABLE 0x03
@@ -66,7 +68,7 @@ struct colorTriplet {
 
 unsigned int udpMsgCount = 0;
 int pbDeviceFd = -1;
-unsigned char myTargetID = 0;
+unsigned int myTargetID = 0;
 
 // Boolean to indicate if we are in daemon mode or not
 bool daemonMode = false;
@@ -84,6 +86,8 @@ void resetScreen() {
    cout << "Blue  : " << (unsigned int)(blueLevel * 100) << " %\n";
    cout << "Crazy Speed : " << (crazyDelay/50) << "/20 (restart crazy to apply)\n";
    cout << "autoMode: " << autoMode << "\n";
+   cout << "ID: " << myTargetID << "\n";
+   cout << "UDP Messages: " << udpMsgCount << "\n";
    cout << "\n";
    cout << "Press 'R' or 'r' to increase/decrease red intensity\n";
    cout << "Press 'G' or 'g' to increase/decrease green intensity\n";
@@ -204,12 +208,13 @@ void remoteColorThread() {
    char buf[8192] = {0};
    unsigned int recvPort = 6565;
    double redUDP, greenUDP, blueUDP;
-   unsigned int udpCommand;
+   unsigned char udpCommand;
    string cmd = "";
    unsigned int rampDuration;
    vector<colorTriplet> colors;
    struct colorTriplet color;
-   unsigned char udpTargetID;
+   bool udpTarget = false;
+   unsigned long long targetBitField;
    
 
    // Initialize the listening UDP socket.
@@ -234,25 +239,29 @@ void remoteColorThread() {
       // Clear the input buffer and wait for a message
       memset((char*)buf, 0, 8192);
       bytesReceived = recvfrom(sock, buf, 8192, 0, (struct sockaddr *)&from, &fromlen);
-      udpMsgCount++;
 
       // Get the command from the first 8 bits of the UDP message
       memcpy(&udpCommand, (char*)buf, 1);
 
-      // Get the target ID from the second 8 bits of the UDP message
-      memcpy(&udpTargetID, (char*)buf + 1, 1);
+      // Get the target ID bitfield from bytes 2-9 of the UDP message
+      memcpy(&targetBitField, (char*)buf + 1, 8);
 
-      // If the TargetID from the UDP message doesn't match our ID,
-      // and isn't set to 0 (zero) (i.e. all targets), then skip out.
-      if ( (udpTargetID != myTargetID) && (udpTargetID != 0) ) continue;
+      // The incoming target IDs are in a 64bit bitfield, one bit per ID
+      // which provides 64 possible unique IDs and all zeros to indicate
+      // the message is intended for all targets. If myTargetID isn't set
+      // in the bitfield, and the bitfield isn't zero, skip this message.
+      if ( (myTargetID != 0) && (targetBitField != 0) && (((unsigned long long)pow(2, (myTargetID - 1)) & targetBitField) != (unsigned long long)pow(2, myTargetID - 1)) ) continue;
+
+      // Only count messages intended for us
+      udpMsgCount++;
 
       // If we got a CMD_SETLEVELS, do a sanity check on the data and
       // ramp to the new values if we aren't currently in auto mode
       if ( udpCommand == CMD_SETLEVELS ) {
-         memcpy(&rampDuration, (char*)buf + 2, 4);
-         memcpy(&redUDP, (char*)buf + 6, 8);
-         memcpy(&greenUDP, (char*)buf + 14, 8);
-         memcpy(&blueUDP, (char*)buf + 22, 8);
+         memcpy(&rampDuration, (char*)buf + 9, 4);
+         memcpy(&redUDP, (char*)buf + 13, 8);
+         memcpy(&greenUDP, (char*)buf + 21, 8);
+         memcpy(&blueUDP, (char*)buf + 29, 8);
          redUDP = abs(redUDP);
          greenUDP = abs(greenUDP);
          blueUDP = abs(blueUDP);
@@ -266,6 +275,17 @@ void remoteColorThread() {
             }
          }
          rampColors(redUDP, greenUDP, blueUDP, rampDuration);
+      }
+
+      // If we got a CMD_OFF then turn off the auto cycler (if active) and set colors to 0 (zero)
+      if ( udpCommand == CMD_OFF ) {
+         if ( autoMode != AUTO_DISABLED ) {
+            autoMode = AUTO_DISABLED;
+            while ( autoActive ) {
+               this_thread::sleep_for(chrono::milliseconds(10));
+            }
+         }
+         setColors(0.0, 0.0, 0.0);
       }
 
       // If we got a CMD_AUTODISABLE then turn off the auto cycler
@@ -282,14 +302,14 @@ void remoteColorThread() {
       // and start a new one from the color sets provided
       if ( udpCommand == CMD_AUTOPATTERN ) {
          unsigned char numTriplets = 0;
-         memcpy(&rampDuration, (char*)buf + 2, 4);
-         memcpy(&numTriplets, (char*)buf + 6, 1);
+         memcpy(&rampDuration, (char*)buf + 9, 4);
+         memcpy(&numTriplets, (char*)buf + 13, 1);
          // The input buffer can hold a max of 35 full triplets plus the header so we limit it to that
          if ( numTriplets > 35 ) numTriplets = 35;
          colors.clear();
          // Snag all the colors from the buffer
          for ( unsigned int i = 0; i < numTriplets; i++ ) {
-            memcpy(&color, (char*)buf + (7 + (i*28)), 28);
+            memcpy(&color, (char*)buf + (14 + (i*28)), 28);
             // Sanity check the incoming color and restDuration data. Zero out color levels which are too high
             color.red = abs(color.red);
             color.green = abs(color.green);
@@ -565,6 +585,7 @@ int main (int argc, const char* argv[], char* envp[]) {
    if ( pValue != NOPARAMETER ) {
       cout << "\nUsage: pwmdemo [options]\n";
       cout << "   Options:\n";
+      cout << "      --id   : The ID for this daemon. Valid from 0 to 64. Defaults to 0.\n";
       cout << "      --help : This help\n";
       cout << "      --test : Use /dev/null instead of /dev/pi-blaster (for testing)\n";
       cout << "      --daemon : Don't output to the screen or start the keyPress thread\n\n";
@@ -585,7 +606,11 @@ int main (int argc, const char* argv[], char* envp[]) {
 
    pValue = getParameter("--id", argc, argv);
    if ( pValue != NOPARAMETER ) {
-      if ( !pValue.empty() ) myTargetID = (unsigned char)stoi(pValue);
+      if ( !pValue.empty() ) myTargetID = (unsigned int)stoi(pValue);
+   }
+   if ( myTargetID > 64 ) {
+      cout << "\nERROR: ID must be between 0 and 64\n\n";
+      return 1;
    }
 
    // Open the Pi-Blaster device for writing

@@ -10,11 +10,13 @@ This application was initially started to get a feel for using Pi-Blaster based 
 
 ## Usage
 
-The pwmdemo app can be used in different modes:
+The pwmdemo app can accept multiple command line parameters. All parameters are optional and are set in the format of "--parameter[=value]":
 
-* Interactive Mode - This mode displays a menu allowing input allowing the individual color/PWM levels to be adjusted as well as listening for UDP messages to change settings.
-* Daemon Mode - This mode only listens for UDP messages to change settings. (command line option --daemon)
-* Testing Mode - This mode causes the app to bind to /dev/null instead of /dev/pi-blaster which can be useful while testing. (command line option --test)
+| Parameter | Values | Description |
+| :-------- | :----- | :---------- |
+| --id | 0 - 64 | The ID of this client/target. This value defaults to 0 (zero) which means "act on all messages regardless of intended target". |
+| --test | *none* | Bind to /dev/null instead of /dev/pi-blaster when setting color values. Useful for testing. |
+| --daemon | *none* | Only listen for UDP messages. The keypress and display thread is not started. |
 
 ## Setup
 
@@ -22,7 +24,7 @@ The pwmdemo app can be used in different modes:
 
 ## UDP Messages
 
-Each message consists of a one byte (8 bits) command, one byte (8 bits) for the target ID, followed by the appropriate data. Target ID values can be between 0 and 255. Target ID of 0 means "all".
+Each message consists of a one byte (8 bits) command, eight bytes (64 bits) for the target IDs, followed by the appropriate data. Target IDs is a bit field which allows up to 64 targets to be commanded from one broadcast message. Multiple targets can have the same ID. Valid target IDs therefore are from 0 to 64 with a target ID of 0 meaning "all targets".
 
 | Name | Value | Description |
 | :--- | ----: | :---------- |
@@ -34,7 +36,7 @@ Each message consists of a one byte (8 bits) command, one byte (8 bits) for the 
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
-| TargetID | This is the target ID for the broadcast message | Unsigned Char | 8 |
+| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
 | Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
@@ -47,7 +49,7 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
-| TargetID | This is the target ID for the broadcast message | Unsigned Char | 8 |
+| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | NumColors | This is the number of color triplets in the message | Unsigned Char | 8 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
@@ -60,4 +62,4 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
-| TargetID | This is the target ID for the broadcast message | Unsigned Char | 8 |
+| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
