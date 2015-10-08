@@ -28,6 +28,7 @@ Each message consists of a one byte (8 bits) command, eight bytes (64 bits) for 
 
 | Name | Value | Description |
 | :--- | ----: | :---------- |
+| CMD_OFF | 0x00 | Turn off all colors (i.e. terminate auto patterns and set values to zero) |
 | CMD_SETLEVELS | 0x01 | Message contains data to set one full color triplet (R,G,B) and rest value |
 | CMD_AUTOPATTERN | 0x02 | Message contains data containing a ramp time along with NumColors number of color triplets to cycle between. |
 | CMD_AUTODISABLE | 0x03 | Message contains only the command (no extra data) and stops any current auto-cycling pattern. |
