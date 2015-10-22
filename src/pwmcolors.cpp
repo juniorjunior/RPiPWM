@@ -26,30 +26,26 @@
 #define CMD_AUTOPATTERN 0x02
 #define CMD_AUTODISABLE 0x03
 
-#define AUTO_DISABLED     0x0000
-#define AUTO_CRAZY        0x0001
-#define AUTO_CHRISTMAS    0x0002
-#define AUTO_HALLOWEEN    0x0003
-#define AUTO_JULYFOURTH   0x0004
-#define AUTO_THANKSGIVING 0x0005
-#define AUTO_EASTER       0x0006
-#define AUTO_REMOTE       0x0007
+#define AUTO_DISABLED   0x00
+#define AUTO_ACTIVE     0x01
 
 #define NOPARAMETER "NOPARAMETER"
 
+// The GPIO pin numbers used for PWM (not the RPi connector pin numbers)
+#define GPIO_RED   23
+#define GPIO_GREEN 24
+#define GPIO_BLUE  25
+
 using namespace std;
 using namespace std::chrono;
-
-
-// The GPIO pin numbers used for PWM (not the RPi connector pin numbers)
-unsigned int redGPIO = 23;
-unsigned int greenGPIO = 24;
-unsigned int blueGPIO = 25;
 
 // Initial PWM/color values
 double redLevel = 0;
 double greenLevel = 0;
 double blueLevel = 0;
+double redStatic = 0;
+double greenStatic = 0;
+double blueStatic = 0;
 
 // Variables for keeping the state of automatic color switching
 unsigned int autoMode = 0;
@@ -83,18 +79,19 @@ void resetScreen() {
    cout << clear;
    cout << "PWM Shifter Running\n";
    cout << "-------------------\n";
-   cout << "Red   : " << (unsigned int)(redLevel * 100) << " %\n";
-   cout << "Green : " << (unsigned int)(greenLevel * 100) << " %\n";
-   cout << "Blue  : " << (unsigned int)(blueLevel * 100) << " %\n";
+   cout << "Red   : " << (unsigned int)(redLevel * 100) << " (" << (unsigned int)(redStatic * 100) << ") %\n";
+   cout << "Green : " << (unsigned int)(greenLevel * 100) << " (" << (unsigned int)(greenStatic * 100) << ") %\n";
+   cout << "Blue  : " << (unsigned int)(blueLevel * 100) << " (" << (unsigned int)(blueStatic * 100) << ") %\n";
    cout << "Crazy Speed : " << (crazyDelay/50) << "/20 (restart crazy to apply)\n";
    cout << "autoMode: " << autoMode << "\n";
+   cout << "autoActive: " << ((autoActive) ? "True" : "False") << "\n";
    cout << "ID: " << myTargetID << "\n";
    cout << "UDP Messages: " << udpMsgCount << "\n";
    cout << "\n";
-   cout << "Press 'R' or 'r' to increase/decrease red intensity\n";
-   cout << "Press 'G' or 'g' to increase/decrease green intensity\n";
-   cout << "Press 'B' or 'b' to increase/decrease blue intensity\n";
-   cout << "Press '[' or ']' to increase/decrease all intensity\n";
+   cout << "Press 'R' or 'r' to increase/decrease static red intensity\n";
+   cout << "Press 'G' or 'g' to increase/decrease static green intensity\n";
+   cout << "Press 'B' or 'b' to increase/decrease static blue intensity\n";
+   cout << "Press '[' or ']' to increase/decrease all static intensity\n";
    cout << "\n";
    cout << "Press 'h' to be scary\n";
    cout << "Press 'e' to summon the easter bunny\n";
@@ -102,6 +99,7 @@ void resetScreen() {
    cout << "Press '4' for an independance celebration\n";
    cout << "Press 'c' to GO CRAZY!!!! (epilepsy warning)\n";
    cout << "Press '-' or '=' to increase/decrease crazy speed\n";
+   cout << "Press '.' to disable any auto-cycler\n";
    cout << "\n";
    cout << "Press 'q' to quit\n";
 }
@@ -115,25 +113,13 @@ void setColor(unsigned int pin, double level) {
    level = abs(level);
    if ( level > 1.0 ) level = 1.0;
 
+   // Set the appropriate global color level
+   if ( pin == GPIO_RED ) redLevel = level;
+   if ( pin == GPIO_GREEN ) greenLevel = level;
+   if ( pin == GPIO_BLUE ) blueLevel = level;
+
    // Create and write the output to the Pi-Blaster device for this color/pin
    cmd = to_string(pin) + "=" + to_string(level) + "\n";
-   write(pbDeviceFd, cmd.c_str(), cmd.length());
-}
-
-// colors are values between 0.0 and 1.0
-void setColors(double red, double green, double blue) {
-   string cmd = "";
-
-   // Sanity check
-   red = abs(red);
-   if ( red > 1.0 ) red = 1.0;
-   green = abs(green);
-   if ( green > 1.0 ) green = 1.0;
-   blue = abs(blue);
-   if ( blue > 1.0 ) blue = 1.0;
-
-   // Create and write the output to the Pi-Blaster device for all colors/pins
-   cmd = to_string(redGPIO) + "=" + to_string(red) + "\n" + to_string(greenGPIO) + "=" + to_string(green) + "\n" + to_string(blueGPIO) + "=" + to_string(blue) + "\n";
    write(pbDeviceFd, cmd.c_str(), cmd.length());
 }
 
@@ -158,9 +144,32 @@ void gentleSleep(unsigned int duration) {
 }
 
 // colors are values between 0.0 and 1.0
+void setColors(double red, double green, double blue) {
+   string cmd = "";
+
+   // Sanity check
+   red = abs(red);
+   if ( red > 1.0 ) red = 1.0;
+   green = abs(green);
+   if ( green > 1.0 ) green = 1.0;
+   blue = abs(blue);
+   if ( blue > 1.0 ) blue = 1.0;
+
+   // Set the color level variables to the new levels
+   redLevel = red;
+   greenLevel = green;
+   blueLevel = blue;
+
+   // Create and write the output to the Pi-Blaster device for all colors/pins
+   cmd = to_string(GPIO_RED) + "=" + to_string(red) + "\n" + to_string(GPIO_GREEN) + "=" + to_string(green) + "\n" + to_string(GPIO_BLUE) + "=" + to_string(blue) + "\n";
+   write(pbDeviceFd, cmd.c_str(), cmd.length());
+}
+
+// colors are values between 0.0 and 1.0
 // duration is in milliseconds
 void rampColors(double red, double green, double blue, unsigned int duration) {
    double redInterval, greenInterval, blueInterval;
+   double redNew, greenNew, blueNew;
    unsigned int stepDuration = 5; // Number of milliseconds for each step.
 
    // The number of steps is the duration divided by the duration of each step.
@@ -175,12 +184,12 @@ void rampColors(double red, double green, double blue, unsigned int duration) {
    // Iterate over the steps
    for ( int i = 0; i < steps; i++ ) {
       // Increment each level interval
-      redLevel += redInterval;
-      greenLevel += greenInterval;
-      blueLevel += blueInterval;
+      redNew = redLevel + redInterval;
+      greenNew = greenLevel + greenInterval;
+      blueNew = blueLevel + blueInterval;
 
       // Set the output color/level and wait for stepDuration milliseconds
-      setColors(redLevel, greenLevel, blueLevel);
+      setColors(redNew, greenNew, blueNew);
       gentleSleep(stepDuration);
       if ( newCommand ) break;
    }
@@ -188,15 +197,11 @@ void rampColors(double red, double green, double blue, unsigned int duration) {
 
 // Pass in a vector of colorTriplet structs and an integer for how long to rest between color changes
 void autoCycleThread(vector<colorTriplet> colors, unsigned int rampDuration) {
-   double redOrig = redLevel;
-   double greenOrig = greenLevel;
-   double blueOrig = blueLevel;
-   double redAuto, greenAuto, blueAuto;
-   unsigned int currentIndex = 0;
    double red, green, blue;
+   unsigned int currentIndex = 0;
 
    autoActive = true;
-   while ( (autoMode != AUTO_DISABLED) && !newCommand ) {
+   while ( autoMode != AUTO_DISABLED ) {
       red = colors.at(currentIndex).red;
       green = colors.at(currentIndex).green;
       blue = colors.at(currentIndex).blue;
@@ -208,13 +213,11 @@ void autoCycleThread(vector<colorTriplet> colors, unsigned int rampDuration) {
          blue = (double)(rand() % 500) / 1000.0;
       }
       rampColors(red, green, blue, rampDuration);
-      if ( (autoMode != AUTO_DISABLED) && !newCommand ) gentleSleep(colors.at(currentIndex).restDuration);
+      gentleSleep(colors.at(currentIndex).restDuration);
       currentIndex++;
       if ( currentIndex == colors.size() ) currentIndex = 0;
    }
 
-   // Set everything back to the "level" values
-   if ( !newCommand ) rampColors(redOrig, greenOrig, blueOrig, rampDuration);
    autoActive = false;
    return;
 }
@@ -298,8 +301,11 @@ void remoteColorThread() {
                this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
-         rampColors(redUDP, greenUDP, blueUDP, rampDuration);
+         redStatic = redUDP;
+         greenStatic = greenUDP;
+         blueStatic = blueUDP;
          newCommand = false;
+         rampColors(redUDP, greenUDP, blueUDP, rampDuration);
       }
 
       // If we got a CMD_OFF then turn off the auto cycler (if active) and set colors to 0 (zero)
@@ -311,8 +317,11 @@ void remoteColorThread() {
                this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
-         setColors(0.0, 0.0, 0.0);
+         redStatic = 0.0;
+         greenStatic = 0.0;
+         blueStatic = 0.0;
          newCommand = false;
+         setColors(0.0, 0.0, 0.0);
       }
 
       // If we got a CMD_AUTODISABLE then turn off the auto cycler
@@ -325,6 +334,8 @@ void remoteColorThread() {
             }
          }
          newCommand = false;
+         // Set everything back to the "static" values
+         rampColors(redStatic, greenStatic, blueStatic, 1000);
       }
 
       // If we got a CMD_AUTOPATTERN then terminate any existing rotation
@@ -356,10 +367,10 @@ void remoteColorThread() {
                this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
-         autoMode = AUTO_REMOTE;
+         autoMode = AUTO_ACTIVE;
+         newCommand = false;
          thread autoCycleT(autoCycleThread, colors, rampDuration);
          autoCycleT.detach();
-         newCommand = false;
       }
    }
 }
@@ -401,53 +412,53 @@ void keyPressThread() {
       }
 
       // Perform the appropriate actions based on which key was pressed
-      if ( (keyPress == 'R') && (redLevel < 1.0) ) {
-         redLevel += 0.1;
-         setColor(redGPIO, redLevel);
+      if ( (keyPress == 'R') && (redStatic < 1.0) ) {
+         redStatic += 0.1;
+         if ( autoMode == AUTO_DISABLED ) setColor(GPIO_RED, redStatic);
       }
-      if ( (keyPress == 'r') && (redLevel > 0.0) ) {
-         redLevel -= 0.1;
-         setColor(redGPIO, redLevel);
+      if ( (keyPress == 'r') && (redStatic > 0.0) ) {
+         redStatic -= 0.1;
+         if ( autoMode == AUTO_DISABLED ) setColor(GPIO_RED, redStatic);
       }
-      if ( (keyPress == 'G') && (greenLevel < 1.0) ) {
-         greenLevel += 0.1;
-         setColor(greenGPIO, greenLevel);
+      if ( (keyPress == 'G') && (greenStatic < 1.0) ) {
+         greenStatic += 0.1;
+         if ( autoMode == AUTO_DISABLED ) setColor(GPIO_GREEN, greenStatic);
       }
-      if ( (keyPress == 'g') && (greenLevel > 0.0) ) {
-         greenLevel -= 0.1;
-         setColor(greenGPIO, greenLevel);
+      if ( (keyPress == 'g') && (greenStatic > 0.0) ) {
+         greenStatic -= 0.1;
+         if ( autoMode == AUTO_DISABLED ) setColor(GPIO_GREEN, greenStatic);
       }
-      if ( (keyPress == 'B') && (blueLevel < 1.0) ) {
-         blueLevel += 0.1;
-         setColor(blueGPIO, blueLevel);
+      if ( (keyPress == 'B') && (blueStatic < 1.0) ) {
+         blueStatic += 0.1;
+         if ( autoMode == AUTO_DISABLED ) setColor(GPIO_BLUE, blueStatic);
       }
-      if ( (keyPress == 'b') && (blueLevel > 0.0) ) {
-         blueLevel -= 0.1;
-         setColor(blueGPIO, blueLevel);
+      if ( (keyPress == 'b') && (blueStatic > 0.0) ) {
+         blueStatic -= 0.1;
+         if ( autoMode == AUTO_DISABLED ) setColor(GPIO_BLUE, blueStatic);
       }
       if ( keyPress == '[' ) {
-         if ( redLevel < 1.0 ) {
-            redLevel += 0.1;
+         if ( redStatic < 1.0 ) {
+            redStatic += 0.1;
          }
-         if ( greenLevel < 1.0 ) {
-            greenLevel += 0.1;
+         if ( greenStatic < 1.0 ) {
+            greenStatic += 0.1;
          }
-         if ( blueLevel < 1.0 ) {
-            blueLevel += 0.1;
+         if ( blueStatic < 1.0 ) {
+            blueStatic += 0.1;
          }
-         setColors(redLevel, greenLevel, blueLevel);
+         if ( autoMode == AUTO_DISABLED ) setColors(redStatic, greenStatic, blueStatic);
       }
       if ( keyPress == ']' ) {
-         if ( redLevel > 0.0 ) {
-            redLevel -= 0.1;
+         if ( redStatic > 0.0 ) {
+            redStatic -= 0.1;
          }
-         if ( greenLevel > 0.0 ) {
-            greenLevel -= 0.1;
+         if ( greenStatic > 0.0 ) {
+            greenStatic -= 0.1;
          }
-         if ( blueLevel > 0.0 ) {
-            blueLevel -= 0.1;
+         if ( blueStatic > 0.0 ) {
+            blueStatic -= 0.1;
          }
-         setColors(redLevel, greenLevel, blueLevel);
+         if ( autoMode == AUTO_DISABLED ) setColors(redStatic, greenStatic, blueStatic);
       }
       if ( keyPress == '-' ) {
          if ( (crazyDelay - 50) >= 50 ) {
@@ -461,99 +472,91 @@ void keyPressThread() {
       }
       if ( keyPress == 'c' ) {
          newCommand = true;
-         if ( autoMode == AUTO_CRAZY ) {
-            autoMode = AUTO_DISABLED;
-         } else {
-            autoMode = AUTO_DISABLED;
-            // Wait for any autoCycleThread to finish
-            while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
-            }
-            autoMode = AUTO_CRAZY;
-            autoColors.clear();
-            autoColors.push_back({0.0, 0.0, 0.0, 0}); // only one element and all zero colors means set them randomly
-            thread autoCycleT(autoCycleThread, autoColors, crazyDelay);
-            autoCycleT.detach();
+         autoMode = AUTO_DISABLED;
+         // Wait for any autoCycleThread to finish
+         while ( autoActive ) {
+            this_thread::sleep_for(chrono::milliseconds(5));
          }
          newCommand = false;
+         autoMode = AUTO_ACTIVE;
+         autoColors.clear();
+         autoColors.push_back({0.0, 0.0, 0.0, 0}); // only one element and all zero colors means set them randomly
+         thread autoCycleT(autoCycleThread, autoColors, crazyDelay);
+         autoCycleT.detach();
       }
       if ( keyPress == 'x' ) {
          newCommand = true;
-         if ( autoMode == AUTO_CHRISTMAS ) {
-            autoMode = AUTO_DISABLED;
-         } else {
-            autoMode = AUTO_DISABLED;
-            // Wait for any autoCycleThread to finish
-            while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
-            }
-            autoMode = AUTO_CHRISTMAS;
-            autoColors.clear();
-            autoColors.push_back({1.0, 0.0, 0.0, 2000}); // red
-            autoColors.push_back({0.0, 1.0, 0.0, 2000}); // green
-            thread autoCycleT(autoCycleThread, autoColors, 1000);
-            autoCycleT.detach();
+         autoMode = AUTO_DISABLED;
+         // Wait for any autoCycleThread to finish
+         while ( autoActive ) {
+            this_thread::sleep_for(chrono::milliseconds(5));
          }
          newCommand = false;
+         autoMode = AUTO_ACTIVE;
+         autoColors.clear();
+         autoColors.push_back({1.0, 0.0, 0.0, 2000}); // red
+         autoColors.push_back({0.0, 1.0, 0.0, 2000}); // green
+         thread autoCycleT(autoCycleThread, autoColors, 1000);
+         autoCycleT.detach();
       }
       if ( keyPress == '4' ) {
          newCommand = true;
-         if ( autoMode == AUTO_JULYFOURTH ) {
-            autoMode = AUTO_DISABLED;
-         } else {
-            autoMode = AUTO_DISABLED;
-            // Wait for any autoCycleThread to finish
-            while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
-            }
-            autoMode = AUTO_JULYFOURTH;
-            autoColors.clear();
-            autoColors.push_back({1.0, 0.0, 0.0, 1000}); // red
-            autoColors.push_back({0.5, 0.5, 0.5, 1000}); // white
-            autoColors.push_back({0.0, 0.0, 1.0, 1000}); // blue
-            thread autoCycleT(autoCycleThread, autoColors, 1000);
-            autoCycleT.detach();
+         autoMode = AUTO_DISABLED;
+         // Wait for any autoCycleThread to finish
+         while ( autoActive ) {
+            this_thread::sleep_for(chrono::milliseconds(5));
          }
          newCommand = false;
+         autoMode = AUTO_ACTIVE;
+         autoColors.clear();
+         autoColors.push_back({1.0, 0.0, 0.0, 1000}); // red
+         autoColors.push_back({0.5, 0.5, 0.5, 1000}); // white
+         autoColors.push_back({0.0, 0.0, 1.0, 1000}); // blue
+         thread autoCycleT(autoCycleThread, autoColors, 1000);
+         autoCycleT.detach();
       }
       if ( keyPress == 'e' ) {
          newCommand = true;
-         if ( autoMode == AUTO_EASTER ) {
-            autoMode = AUTO_DISABLED;
-         } else {
-            autoMode = AUTO_DISABLED;
-            // Wait for any autoCycleThread to finish
-            while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
-            }
-            autoMode = AUTO_EASTER;
-            autoColors.clear();
-            autoColors.push_back({1.0, 0.012, 0.753, 1000}); // pink
-            autoColors.push_back({0.031, 1.0, 0.969, 1000}); // cyan
-            autoColors.push_back({1.0, 0.988, 0.02, 1000}); // yellow
-            thread autoCycleT(autoCycleThread, autoColors, 1000);
-            autoCycleT.detach();
+         autoMode = AUTO_DISABLED;
+         // Wait for any autoCycleThread to finish
+         while ( autoActive ) {
+            this_thread::sleep_for(chrono::milliseconds(5));
          }
          newCommand = false;
+         autoMode = AUTO_ACTIVE;
+         autoColors.clear();
+         autoColors.push_back({1.0, 0.012, 0.753, 1000}); // pink
+         autoColors.push_back({0.031, 1.0, 0.969, 1000}); // cyan
+         autoColors.push_back({1.0, 0.988, 0.02, 1000}); // yellow
+         thread autoCycleT(autoCycleThread, autoColors, 1000);
+         autoCycleT.detach();
       }
       if ( keyPress == 'h' ) {
          newCommand = true;
-         if ( autoMode == AUTO_HALLOWEEN ) {
-            autoMode = AUTO_DISABLED;
-         } else {
-            autoMode = AUTO_DISABLED;
-            // Wait for any autoCycleThread to finish
-            while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
-            }
-            autoMode = AUTO_HALLOWEEN;
-            autoColors.clear();
-            autoColors.push_back({1.0, 0.094, 0.0, 1000}); // orange
-            autoColors.push_back({0.0, 0.0, 0.0, 250}); // black
-            thread autoCycleT(autoCycleThread, autoColors, 1000);
-            autoCycleT.detach();
+         autoMode = AUTO_DISABLED;
+         // Wait for any autoCycleThread to finish
+         while ( autoActive ) {
+            this_thread::sleep_for(chrono::milliseconds(5));
          }
          newCommand = false;
+         autoMode = AUTO_ACTIVE;
+         autoColors.clear();
+         autoColors.push_back({1.0, 0.094, 0.0, 1000}); // orange
+         autoColors.push_back({0.0, 0.0, 0.0, 250}); // black
+         thread autoCycleT(autoCycleThread, autoColors, 1000);
+         autoCycleT.detach();
+      }
+      if ( keyPress == '.' ) {
+         if ( autoMode != AUTO_DISABLED ) {
+            newCommand = true;
+            autoMode = AUTO_DISABLED;
+            while ( autoActive ) {
+               this_thread::sleep_for(chrono::milliseconds(5));
+            }
+            newCommand = false;
+            // Set everything back to the "static" values
+            rampColors(redStatic, greenStatic, blueStatic, 1000);
+         }
       }
       if ( keyPress == 'q' ) {
          newCommand = true;
@@ -561,7 +564,7 @@ void keyPressThread() {
             cout << "\nWaiting for auto cyclers to stop...";
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
+               this_thread::sleep_for(chrono::milliseconds(5));
             }
             cout << "\n\n";
          }
