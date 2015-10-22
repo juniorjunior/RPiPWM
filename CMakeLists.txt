@@ -16,3 +16,4 @@ else()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(pwmcolors -lncurses)

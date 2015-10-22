@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ncurses.h>
 
 #include <sys/socket.h>
 
@@ -53,6 +54,7 @@ double blueLevel = 0;
 // Variables for keeping the state of automatic color switching
 unsigned int autoMode = 0;
 bool autoActive = false;
+bool newCommand = false;
 
 // Initial delay in milliseconds between each color change while in an auto mode
 unsigned int crazyDelay = 250;
@@ -135,9 +137,29 @@ void setColors(double red, double green, double blue) {
    write(pbDeviceFd, cmd.c_str(), cmd.length());
 }
 
+// This function sleeps a thread for a specified duration.
+// However, it breaks that duration up into 5 millisecond
+// intervals so it can abort the full duration if a new
+// command has been received.
+void gentleSleep(unsigned int duration) {
+   unsigned int timeRemaining = duration;
+   unsigned int interval;
+
+   while ( !newCommand && (timeRemaining > 0) ) {
+      if ( timeRemaining > 5 ) {
+         interval = 5;
+         timeRemaining -= 5;
+      } else {
+         interval = timeRemaining;
+         timeRemaining = 0;
+      }
+      this_thread::sleep_for(chrono::milliseconds(interval));
+   }
+}
+
 // colors are values between 0.0 and 1.0
 // duration is in milliseconds
-void rampColors(double red, double green, double blue, double duration) {
+void rampColors(double red, double green, double blue, unsigned int duration) {
    double redInterval, greenInterval, blueInterval;
    unsigned int stepDuration = 5; // Number of milliseconds for each step.
 
@@ -159,7 +181,8 @@ void rampColors(double red, double green, double blue, double duration) {
 
       // Set the output color/level and wait for stepDuration milliseconds
       setColors(redLevel, greenLevel, blueLevel);
-      this_thread::sleep_for(chrono::milliseconds(stepDuration));
+      gentleSleep(stepDuration);
+      if ( newCommand ) break;
    }
 }
 
@@ -173,7 +196,7 @@ void autoCycleThread(vector<colorTriplet> colors, unsigned int rampDuration) {
    double red, green, blue;
 
    autoActive = true;
-   while ( autoMode != AUTO_DISABLED ) {
+   while ( (autoMode != AUTO_DISABLED) && !newCommand ) {
       red = colors.at(currentIndex).red;
       green = colors.at(currentIndex).green;
       blue = colors.at(currentIndex).blue;
@@ -185,13 +208,13 @@ void autoCycleThread(vector<colorTriplet> colors, unsigned int rampDuration) {
          blue = (double)(rand() % 500) / 1000.0;
       }
       rampColors(red, green, blue, rampDuration);
-      if ( autoMode != AUTO_DISABLED ) this_thread::sleep_for(chrono::milliseconds(colors.at(currentIndex).restDuration));
+      if ( (autoMode != AUTO_DISABLED) && !newCommand ) gentleSleep(colors.at(currentIndex).restDuration);
       currentIndex++;
       if ( currentIndex == colors.size() ) currentIndex = 0;
    }
 
    // Set everything back to the "level" values
-   rampColors(redOrig, greenOrig, blueOrig, rampDuration);
+   if ( !newCommand ) rampColors(redOrig, greenOrig, blueOrig, rampDuration);
    autoActive = false;
    return;
 }
@@ -258,6 +281,7 @@ void remoteColorThread() {
       // If we got a CMD_SETLEVELS, do a sanity check on the data and
       // ramp to the new values if we aren't currently in auto mode
       if ( udpCommand == CMD_SETLEVELS ) {
+         newCommand = true;
          memcpy(&rampDuration, (char*)buf + 9, 4);
          memcpy(&redUDP, (char*)buf + 13, 8);
          memcpy(&greenUDP, (char*)buf + 21, 8);
@@ -271,36 +295,42 @@ void remoteColorThread() {
          if ( autoMode != AUTO_DISABLED ) {
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
+               this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
          rampColors(redUDP, greenUDP, blueUDP, rampDuration);
+         newCommand = false;
       }
 
       // If we got a CMD_OFF then turn off the auto cycler (if active) and set colors to 0 (zero)
       if ( udpCommand == CMD_OFF ) {
+         newCommand = true;
          if ( autoMode != AUTO_DISABLED ) {
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
+               this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
          setColors(0.0, 0.0, 0.0);
+         newCommand = false;
       }
 
       // If we got a CMD_AUTODISABLE then turn off the auto cycler
       if ( udpCommand == CMD_AUTODISABLE ) {
+         newCommand = true;
          if ( autoMode != AUTO_DISABLED ) {
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
+               this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
+         newCommand = false;
       }
 
       // If we got a CMD_AUTOPATTERN then terminate any existing rotation
       // and start a new one from the color sets provided
       if ( udpCommand == CMD_AUTOPATTERN ) {
+         newCommand = true;
          unsigned char numTriplets = 0;
          memcpy(&rampDuration, (char*)buf + 9, 4);
          memcpy(&numTriplets, (char*)buf + 13, 1);
@@ -323,12 +353,13 @@ void remoteColorThread() {
          if ( autoMode != AUTO_DISABLED ) {
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
-               this_thread::sleep_for(chrono::milliseconds(10));
+               this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
          autoMode = AUTO_REMOTE;
          thread autoCycleT(autoCycleThread, colors, rampDuration);
          autoCycleT.detach();
+         newCommand = false;
       }
    }
 }
@@ -429,6 +460,7 @@ void keyPressThread() {
          }
       }
       if ( keyPress == 'c' ) {
+         newCommand = true;
          if ( autoMode == AUTO_CRAZY ) {
             autoMode = AUTO_DISABLED;
          } else {
@@ -443,8 +475,10 @@ void keyPressThread() {
             thread autoCycleT(autoCycleThread, autoColors, crazyDelay);
             autoCycleT.detach();
          }
+         newCommand = false;
       }
       if ( keyPress == 'x' ) {
+         newCommand = true;
          if ( autoMode == AUTO_CHRISTMAS ) {
             autoMode = AUTO_DISABLED;
          } else {
@@ -460,8 +494,10 @@ void keyPressThread() {
             thread autoCycleT(autoCycleThread, autoColors, 1000);
             autoCycleT.detach();
          }
+         newCommand = false;
       }
       if ( keyPress == '4' ) {
+         newCommand = true;
          if ( autoMode == AUTO_JULYFOURTH ) {
             autoMode = AUTO_DISABLED;
          } else {
@@ -478,8 +514,10 @@ void keyPressThread() {
             thread autoCycleT(autoCycleThread, autoColors, 1000);
             autoCycleT.detach();
          }
+         newCommand = false;
       }
       if ( keyPress == 'e' ) {
+         newCommand = true;
          if ( autoMode == AUTO_EASTER ) {
             autoMode = AUTO_DISABLED;
          } else {
@@ -496,8 +534,10 @@ void keyPressThread() {
             thread autoCycleT(autoCycleThread, autoColors, 1000);
             autoCycleT.detach();
          }
+         newCommand = false;
       }
       if ( keyPress == 'h' ) {
+         newCommand = true;
          if ( autoMode == AUTO_HALLOWEEN ) {
             autoMode = AUTO_DISABLED;
          } else {
@@ -513,8 +553,10 @@ void keyPressThread() {
             thread autoCycleT(autoCycleThread, autoColors, 1000);
             autoCycleT.detach();
          }
+         newCommand = false;
       }
       if ( keyPress == 'q' ) {
+         newCommand = true;
          if ( autoMode != AUTO_DISABLED ) {
             cout << "\nWaiting for auto cyclers to stop...";
             autoMode = AUTO_DISABLED;
@@ -523,6 +565,7 @@ void keyPressThread() {
             }
             cout << "\n\n";
          }
+         newCommand = false;
       }
       resetScreen();
    }
