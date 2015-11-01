@@ -55,7 +55,7 @@ bool newCommand = false;
 // Initial delay in milliseconds between each color change while in an auto mode
 unsigned int crazyDelay = 250;
 
-// Struct for passing color/PWM value sets
+// Struct for storing color/PWM value sets
 // Colors are obvious. restDuration is how long to rest on this color.
 struct colorTriplet {
    double red;
@@ -73,6 +73,11 @@ bool daemonMode = false;
 
 // Make oldSettings global so we can reset settings on a CTRL-C
 struct termios oldSettings;
+
+void cleanExit(int level) {
+   tcsetattr(fileno(stdin), TCSANOW, &oldSettings);
+   exit(level);
+}
 
 void resetScreen() {
    char clear[5] = {27, '[', '2', 'J', 0};
@@ -231,9 +236,10 @@ void remoteColorThread() {
    socklen_t fromlen;
    struct sockaddr_in server;
    struct sockaddr_in from;
-   char buf[8192] = {0};
+   char buf[1024] = {0};
    unsigned int recvPort = 6565;
-   double redUDP, greenUDP, blueUDP;
+   unsigned char redUDP, greenUDP, blueUDP;
+   unsigned int restDurationUDP;
    unsigned char udpCommand;
    string cmd = "";
    unsigned int rampDuration;
@@ -263,8 +269,8 @@ void remoteColorThread() {
    // Loop forever waiting for UDP messages
    while ( true ) {
       // Clear the input buffer and wait for a message
-      memset((char*)buf, 0, 8192);
-      bytesReceived = recvfrom(sock, buf, 8192, 0, (struct sockaddr *)&from, &fromlen);
+      memset((char*)buf, 0, 1024);
+      bytesReceived = recvfrom(sock, buf, 1024, 0, (struct sockaddr *)&from, &fromlen);
 
       // Get the command from the first 8 bits of the UDP message
       memcpy(&udpCommand, (char*)buf, 1);
@@ -286,26 +292,20 @@ void remoteColorThread() {
       if ( udpCommand == CMD_SETLEVELS ) {
          newCommand = true;
          memcpy(&rampDuration, (char*)buf + 9, 4);
-         memcpy(&redUDP, (char*)buf + 13, 8);
-         memcpy(&greenUDP, (char*)buf + 21, 8);
-         memcpy(&blueUDP, (char*)buf + 29, 8);
-         redUDP = abs(redUDP);
-         greenUDP = abs(greenUDP);
-         blueUDP = abs(blueUDP);
-         if ( redUDP > 1.0 ) redUDP = 1.0;
-         if ( greenUDP > 1.0 ) greenUDP = 1.0;
-         if ( blueUDP > 1.0 ) blueUDP = 1.0;
+         memcpy(&redUDP, (char*)buf + 13, 1);
+         memcpy(&greenUDP, (char*)buf + 14, 1);
+         memcpy(&blueUDP, (char*)buf + 15, 1);
          if ( autoMode != AUTO_DISABLED ) {
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
                this_thread::sleep_for(chrono::milliseconds(5));
             }
          }
-         redStatic = redUDP;
-         greenStatic = greenUDP;
-         blueStatic = blueUDP;
+         redStatic = (double)(redUDP/255.0);
+         greenStatic = (double)(greenUDP/255.0);
+         blueStatic = (double)(blueUDP/255.0);
          newCommand = false;
-         rampColors(redUDP, greenUDP, blueUDP, rampDuration);
+         rampColors(redStatic, greenStatic, blueStatic, rampDuration);
       }
 
       // If we got a CMD_OFF then turn off the auto cycler (if active) and set colors to 0 (zero)
@@ -350,14 +350,15 @@ void remoteColorThread() {
          colors.clear();
          // Snag all the colors from the buffer
          for ( unsigned int i = 0; i < numTriplets; i++ ) {
-            memcpy(&color, (char*)buf + (14 + (i*28)), 28);
+            memcpy(&redUDP, (char*)buf + (14 + (i*7)), 1);
+            memcpy(&greenUDP, (char*)buf + (15 + (i*7)), 1);
+            memcpy(&blueUDP, (char*)buf + (16 + (i*7)), 1);
+            memcpy(&restDurationUDP, (char*)buf + (17 + (i*7)), 4);
+            color.red = (double)redUDP/255.0;
+            color.green = (double)greenUDP/255.0;
+            color.blue = (double)blueUDP/255.0;
+            color.restDuration = restDurationUDP;
             // Sanity check the incoming color and restDuration data. Zero out color levels which are too high
-            color.red = abs(color.red);
-            color.green = abs(color.green);
-            color.blue = abs(color.blue);
-            if ( color.red > 1.0 ) color.red = 0.0;
-            if ( color.green > 1.0 ) color.green = 0.0;
-            if ( color.blue > 1.0 ) color.blue = 0.0;
             colors.push_back(color);
          }
          // Wait for the current auto cycler to end if it is running
@@ -414,26 +415,32 @@ void keyPressThread() {
       // Perform the appropriate actions based on which key was pressed
       if ( (keyPress == 'R') && (redStatic < 1.0) ) {
          redStatic += 0.1;
+         if ( redStatic > 1.0 ) redStatic = 1.0;
          if ( autoMode == AUTO_DISABLED ) setColor(GPIO_RED, redStatic);
       }
       if ( (keyPress == 'r') && (redStatic > 0.0) ) {
          redStatic -= 0.1;
+         if ( redStatic < 0.0 ) redStatic = 0.0;
          if ( autoMode == AUTO_DISABLED ) setColor(GPIO_RED, redStatic);
       }
       if ( (keyPress == 'G') && (greenStatic < 1.0) ) {
          greenStatic += 0.1;
+         if ( greenStatic > 1.0 ) greenStatic = 1.0;
          if ( autoMode == AUTO_DISABLED ) setColor(GPIO_GREEN, greenStatic);
       }
       if ( (keyPress == 'g') && (greenStatic > 0.0) ) {
          greenStatic -= 0.1;
+         if ( greenStatic < 0.0 ) greenStatic = 0.0;
          if ( autoMode == AUTO_DISABLED ) setColor(GPIO_GREEN, greenStatic);
       }
       if ( (keyPress == 'B') && (blueStatic < 1.0) ) {
          blueStatic += 0.1;
+         if ( blueStatic > 1.0 ) blueStatic = 1.0;
          if ( autoMode == AUTO_DISABLED ) setColor(GPIO_BLUE, blueStatic);
       }
       if ( (keyPress == 'b') && (blueStatic > 0.0) ) {
          blueStatic -= 0.1;
+         if ( blueStatic < 0.0 ) blueStatic = 0.0;
          if ( autoMode == AUTO_DISABLED ) setColor(GPIO_BLUE, blueStatic);
       }
       if ( keyPress == '[' ) {
@@ -446,6 +453,9 @@ void keyPressThread() {
          if ( blueStatic < 1.0 ) {
             blueStatic += 0.1;
          }
+         if ( redStatic > 1.0 ) redStatic = 1.0;
+         if ( greenStatic > 1.0 ) greenStatic = 1.0;
+         if ( blueStatic > 1.0 ) blueStatic = 1.0;
          if ( autoMode == AUTO_DISABLED ) setColors(redStatic, greenStatic, blueStatic);
       }
       if ( keyPress == ']' ) {
@@ -458,6 +468,9 @@ void keyPressThread() {
          if ( blueStatic > 0.0 ) {
             blueStatic -= 0.1;
          }
+         if ( redStatic < 0.0 ) redStatic = 0.0;
+         if ( greenStatic < 0.0 ) greenStatic = 0.0;
+         if ( blueStatic < 0.0 ) blueStatic = 0.0;
          if ( autoMode == AUTO_DISABLED ) setColors(redStatic, greenStatic, blueStatic);
       }
       if ( keyPress == '-' ) {

@@ -39,9 +39,9 @@ Each message consists of a one byte (8 bits) command, eight bytes (64 bits) for 
 | CMD  | This is the command action to take | Unsigned Char | 8 |
 | Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
-| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
-| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
-| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
+| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
+| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
 
 ### CMD_AUTOPATTERN
 
@@ -53,9 +53,9 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | NumColors | This is the number of color triplets in the message | Unsigned Char | 8 |
-| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
-| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
-| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | Double | 64 |
+| Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
+| Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
+| Blue  | This is the level for the "blue" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
 | RestTime | This is the time in milliseconds to hold on this color after ramping | Unsigned Int | 32 |
 
 ### CMD_AUTODISABLE
