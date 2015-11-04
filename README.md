@@ -24,7 +24,7 @@ The pwmdemo app can accept multiple command line parameters. All parameters are 
 
 ## UDP Messages
 
-Each message consists of a one byte (8 bits) command, eight bytes (64 bits) for the target IDs, followed by the appropriate data. Target IDs is a bit field which allows up to 64 targets to be commanded from one broadcast message. Multiple targets can have the same ID. Valid target IDs therefore are from 0 to 64 with a target ID of 0 meaning "all targets".
+Each message consists of a one byte (8 bits) command, eight bytes (64 bits) for the target IDs, four bytes (32 bits) for the message ID, followed by the appropriate data. Target IDs is a bit field which allows up to 64 targets to be commanded from one broadcast message. Multiple targets can have the same ID. Valid target IDs therefore are from 0 to 64 with a target ID of 0 meaning "all targets".
 
 | Name | Value | Description |
 | :--- | ----: | :---------- |
@@ -33,11 +33,19 @@ Each message consists of a one byte (8 bits) command, eight bytes (64 bits) for 
 | CMD_AUTOPATTERN | 0x02 | Message contains data containing a ramp time along with NumColors number of color triplets to cycle between. |
 | CMD_AUTODISABLE | 0x03 | Message contains only the command (no extra data) and stops any current auto-cycling pattern. |
 
+### CMD_OFF
+| Name | Description | Type | Bits |
+| :--- | :---------- | :--- | ---: |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
+| MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
+
 ### CMD_SETLEVELS
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
 | Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
+| MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
 | Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
@@ -51,6 +59,7 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
 | Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
+| MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | NumColors | This is the number of color triplets in the message | Unsigned Char | 8 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
@@ -64,3 +73,4 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | :--- | :---------- | :--- | ---: |
 | CMD  | This is the command action to take | Unsigned Char | 8 |
 | Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
+| MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |

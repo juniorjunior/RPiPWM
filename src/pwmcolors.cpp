@@ -247,6 +247,9 @@ void remoteColorThread() {
    struct colorTriplet color;
    bool udpTarget = false;
    unsigned long long targetBitField;
+   unsigned int lastMessageID = 0;
+   unsigned int curMessageID = 0;
+   unsigned int headerOffset = 13; // The number of bytes in the message header
    
 
    // Initialize the listening UDP socket.
@@ -278,6 +281,14 @@ void remoteColorThread() {
       // Get the target ID bitfield from bytes 2-9 of the UDP message
       memcpy(&targetBitField, (char*)buf + 1, 8);
 
+      // Get the message ID. This is used to disregard repeat messages
+      // which may be sent to work around the "unreliable" in UDP
+      memcpy(&curMessageID, (char*)buf + 9, 4);
+
+      // Skip the rest of this packet if we've seen the exact same message before
+      if ( curMessageID == lastMessageID ) continue;
+      lastMessageID = curMessageID;
+
       // The incoming target IDs are in a 64bit bitfield, one bit per ID
       // which provides 64 possible unique IDs and all zeros to indicate
       // the message is intended for all targets. If myTargetID isn't set
@@ -291,10 +302,10 @@ void remoteColorThread() {
       // ramp to the new values if we aren't currently in auto mode
       if ( udpCommand == CMD_SETLEVELS ) {
          newCommand = true;
-         memcpy(&rampDuration, (char*)buf + 9, 4);
-         memcpy(&redUDP, (char*)buf + 13, 1);
-         memcpy(&greenUDP, (char*)buf + 14, 1);
-         memcpy(&blueUDP, (char*)buf + 15, 1);
+         memcpy(&rampDuration, (char*)buf + headerOffset, 4);
+         memcpy(&redUDP, (char*)buf + headerOffset + 4, 1);
+         memcpy(&greenUDP, (char*)buf + headerOffset + 5, 1);
+         memcpy(&blueUDP, (char*)buf + headerOffset + 6, 1);
          if ( autoMode != AUTO_DISABLED ) {
             autoMode = AUTO_DISABLED;
             while ( autoActive ) {
@@ -343,17 +354,17 @@ void remoteColorThread() {
       if ( udpCommand == CMD_AUTOPATTERN ) {
          newCommand = true;
          unsigned char numTriplets = 0;
-         memcpy(&rampDuration, (char*)buf + 9, 4);
-         memcpy(&numTriplets, (char*)buf + 13, 1);
+         memcpy(&rampDuration, (char*)buf + headerOffset, 4);
+         memcpy(&numTriplets, (char*)buf + headerOffset + 4, 1);
          // The input buffer can hold a max of 35 full triplets plus the header so we limit it to that
          if ( numTriplets > 35 ) numTriplets = 35;
          colors.clear();
          // Snag all the colors from the buffer
          for ( unsigned int i = 0; i < numTriplets; i++ ) {
-            memcpy(&redUDP, (char*)buf + (14 + (i*7)), 1);
-            memcpy(&greenUDP, (char*)buf + (15 + (i*7)), 1);
-            memcpy(&blueUDP, (char*)buf + (16 + (i*7)), 1);
-            memcpy(&restDurationUDP, (char*)buf + (17 + (i*7)), 4);
+            memcpy(&redUDP, (char*)buf + headerOffset + (5 + (i*7)), 1);
+            memcpy(&greenUDP, (char*)buf + headerOffset + (6 + (i*7)), 1);
+            memcpy(&blueUDP, (char*)buf + headerOffset + (7 + (i*7)), 1);
+            memcpy(&restDurationUDP, (char*)buf + headerOffset + (8 + (i*7)), 4);
             color.red = (double)redUDP/255.0;
             color.green = (double)greenUDP/255.0;
             color.blue = (double)blueUDP/255.0;
