@@ -24,7 +24,7 @@ The pwmdemo app can accept multiple command line parameters. All parameters are 
 
 ## UDP Messages
 
-Each message consists of two four byte (32 bits) unique numbers used as a basic packet filter, a one byte (8 bits) command, eight bytes (64 bits) for the target IDs, four bytes (32 bits) for the message ID, followed by the appropriate data for the message type. Target IDs is a bit field which allows up to 64 targets to be commanded from one broadcast message. Multiple targets can have the same ID. Valid target IDs therefore are from 0 to 64 with a target ID of 0 meaning "all targets".
+Each message consists of two four byte (32 bits) unique numbers used as a basic packet filter, four bytes (32 bits) for the message ID, a one byte (8 bits) command, four bytes (32 bits) for the target ID, followed by the appropriate data for the message type. Multiple targets can have the same ID. A target ID of 0 means "all targets".
 
 The first and second four byte integers values are 4039196302 and 3194769291 respectively. The packet filter values are used to do a simple check that the incoming packet is meant for the device receiving it. Slow speed receivers may crash or hang if over-flooded with UDP packets. Since the receiver must listen for broadcast UDP there is a decent liklihood that other traffic may show up. Having a specific 64 bits of data at the very start of the packet drastically reduces the chance of thinking the packet needs to be processed which saves major clock cycles on slow receivers. If there is a better/simpler/more efficient way of doing this I'm open to suggestions.
 
@@ -40,18 +40,18 @@ The first and second four byte integers values are 4039196302 and 3194769291 res
 | :--- | :---------- | :--- | ---: |
 | Filter_1 | Value: 4039196302 | Unsigned Int | 32 |
 | Filter_2 | Value: 3194769291 | Unsigned Int | 32 |
-| CMD  | This is the command action to take | Unsigned Char | 8 |
-| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message. | Unsigned Int | 32 |
 
 ### CMD_SETLEVELS
 | Name | Description | Type | Bits |
 | :--- | :---------- | :--- | ---: |
 | Filter_1 | Value: 4039196302 | Unsigned Int | 32 |
 | Filter_2 | Value: 3194769291 | Unsigned Int | 32 |
-| CMD  | This is the command action to take | Unsigned Char | 8 |
-| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message. | Unsigned Int | 32 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
 | Green  | This is the level for the "green" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
@@ -65,9 +65,9 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | :--- | :---------- | :--- | ---: |
 | Filter_1 | Value: 4039196302 | Unsigned Int | 32 |
 | Filter_2 | Value: 3194769291 | Unsigned Int | 32 |
-| CMD  | This is the command action to take | Unsigned Char | 8 |
-| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message. | Unsigned Int | 32 |
 | RampTime | This is the time in milliseconds over which the color will be changed | Unsigned Int | 32 |
 | NumColors | This is the number of color triplets in the message | Unsigned Char | 8 |
 | Red  | This is the level for the "red" GPIO pin. Values from 0.0 to 1.0 | Unsigned Char | 8 |
@@ -81,6 +81,6 @@ The CMD, RampTime and NumColors value/bits are at the head of the message. The n
 | :--- | :---------- | :--- | ---: |
 | Filter_1 | Value: 4039196302 | Unsigned Int | 32 |
 | Filter_2 | Value: 3194769291 | Unsigned Int | 32 |
-| CMD  | This is the command action to take | Unsigned Char | 8 |
-| Targets | This is the target ID bitfield for the broadcast message. Set bits to 1 for each target which should accept this command | Unsigned Long Long | 64 |
 | MessageID | This is used to identify and ignore duplicate messages. Due to the unreliable nature of UDP, and the slow embedded processors, sending multiple duplicate messages some few milliseconds (10) apart can help ensure the devices get all their messages | Unsigned Int | 32 |
+| CMD  | This is the command action to take | Unsigned Char | 8 |
+| TargetID | This is the target ID for the broadcast message. | Unsigned Int | 32 |
